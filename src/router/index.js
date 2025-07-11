@@ -1,13 +1,13 @@
-import { createRouter, createWebHistory } from "vue-router";
-import { useAuthStore } from "../../stores/auth";
+import { createRouter, createWebHistory } from 'vue-router'
+import { middlewarePipeline } from './middlearePipeline'
+import auth from './middlewares/auth'
+import role from './middlewares/role'
 
 const routes = [
-  {path: '/', name: 'login', component: () => import('@/views/LoginView.vue')},
-  {path: '/recuperar', name: 'recuperar_cont', component: () => import('@/views/RecuperarContrasena.vue')},
-  {path: '/validarc', name: 'validar_codigo', component: () => import('@/views/ValidarCodigo.vue')},
-  {path: '/panel_admin', name: 'panel', component: () => import('@/views/PanelAView.vue'), meta: {requiresAuth: true, role: 'admin'}},
-  {path: '/panel_inq', name: 'usuario', component: () => import('@/views/PanelIView.vue'), meta: {requiresAuth: true, role: 'inquilino'}},
-  {path: '/cambiarcontrasena', name: 'cambiar_contrasena', component: () => import('@/views/CambiarContrasenaView.vue'), meta: {requiresAuth: true, role: 'admin'}}
+  { path: '/', name: 'login', component: () => import('@/views/LoginView.vue') },
+  { path: '/panel_admin', name: 'panel', component: () => import('@/views/PanelAView.vue'), meta: { middleware: [auth, role], requiresAuth: true, role: 'admin' }},
+  { path: '/panel_inq', name: 'usuario', component: () => import('@/views/PanelIView.vue'), meta: { middleware: [auth, role], requiresAuth: true, role: 'inquilino' }},
+  { path: '/cambiarcontrasena', name: 'cambiar_contrasena', component: () => import('@/views/CambiarContrasenaView.vue'), meta: { middleware: [auth, role], requiresAuth: true, role: 'admin' }},
 ]
 
 const router = createRouter({
@@ -16,16 +16,17 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  const auth = useAuthStore()
-  if (to.meta.requiresAuth && !auth.token) {
-    return next({ name: 'login' })
+  if (!to.meta || !to.meta.middleware) {
+    return next()
   }
 
-  if (to.meta.role && auth.user?.tipo !== to.meta.role) {
-    return next({ name: 'login' })
-  }
+  const middlewares = to.meta.middleware
+  const context = { to, from, next }
 
-  next()
+  return middlewares[0]({
+    ...context,
+    next: middlewarePipeline(context, middlewares, 1)
+  })
 })
 
 export default router
